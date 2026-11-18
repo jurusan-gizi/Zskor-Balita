@@ -4,16 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Z-Skor Balita — Pengolah Z-Score WHO (Offline)</title>
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#00B8AD">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <style>
-  :root{--bg:#f6f7f5;--card:#fff;--ink:#1c2321;--mute:#5d6b67;--line:#e2e6e3;--pri:#0f766e;--pri2:#115e59;--soft:#e6f4f1;--warn:#b45309;--warnbg:#fff7ea;--bad:#b91c1c}
+  /* Palet logo Kemenkes: tosca #00B8AD, biru muda #62C0D0, hijau #72D58A, hijau limau #CDDD29 */
+  :root{--bg:#f4f9f8;--card:#fff;--ink:#17302e;--mute:#566b69;--line:#dbe9e7;--pri:#00877f;--pri2:#006e67;--tosca:#00B8AD;--biru:#62C0D0;--hijau:#72D58A;--limau:#CDDD29;--soft:#e3f6f4;--warn:#b45309;--warnbg:#fbfde8;--bad:#c0262d}
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5}
-  header{background:var(--pri);color:#fff;padding:18px 20px}
-  header h1{margin:0;font-size:20px;letter-spacing:.2px}
-  header p{margin:2px 0 0;opacity:.85;font-size:13.5px}
+  header{background:#fff;border-bottom:1px solid var(--line)}
+  .brand{max-width:1100px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .brand img{height:52px;width:auto}
+  .brand .t{border-left:3px solid var(--limau);padding-left:16px}
+  .brand h1{margin:0;font-size:21px;color:var(--pri2);letter-spacing:.2px}
+  .brand p{margin:1px 0 0;color:var(--mute);font-size:13.5px}
+  .stripe{height:5px;background:linear-gradient(90deg,var(--tosca) 0 40%,var(--biru) 40% 65%,var(--hijau) 65% 85%,var(--limau) 85%)}
+  .dev{color:var(--pri2);font-weight:600}
   main{max-width:1100px;margin:0 auto;padding:18px 16px 60px}
   .privacy{display:flex;gap:10px;align-items:flex-start;background:var(--soft);border:1px solid #c7e6df;border-radius:10px;padding:10px 14px;font-size:13.5px;margin-bottom:16px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
@@ -43,14 +49,15 @@
   .info{font-size:13px;color:var(--mute)}
   .warnbox{background:var(--warnbg);border:1px solid #f3d9a8;color:#7a4a06;border-radius:8px;padding:8px 12px;font-size:13.5px;margin-top:10px}
   .bar{height:8px;background:#e5ebe9;border-radius:6px;overflow:hidden;margin-top:10px}
-  .bar>div{height:100%;width:0;background:var(--pri);transition:width .1s}
+  .bar>div{height:100%;width:0;background:linear-gradient(90deg,var(--tosca),var(--hijau),var(--limau));transition:width .1s}
   .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
-  .stat{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .stat{border:1px solid var(--line);border-top:3px solid var(--tosca);border-radius:10px;padding:10px 12px}
+  .stat:nth-child(2n){border-top-color:var(--hijau)} .stat:nth-child(3n){border-top-color:var(--limau)}
   .stat .n{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
   .stat .l{font-size:12.5px;color:var(--mute)}
   table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
   th,td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;white-space:nowrap}
-  th{background:#f2f5f4;position:sticky;top:0;font-weight:600}
+  th{background:#e8f5f3;position:sticky;top:0;font-weight:600}
   .tblwrap{overflow:auto;max-height:460px;border:1px solid var(--line);border-radius:8px}
   td.z{text-align:right}
   td.flag{color:var(--bad);font-weight:600}
@@ -63,8 +70,14 @@
 </head>
 <body>
 <header>
-  <h1>Z-Skor Balita</h1>
-  <p>Hitung z-score BB/U, PB-TB/U, BB/PB-TB, dan IMT/U per anak (Standar WHO 2006, 0–60 bulan)</p>
+  <div class="brand">
+    <img src="logo-poltekkes.png" alt="Kemenkes Poltekkes Makassar">
+    <div class="t">
+      <h1>Z-Skor Balita</h1>
+      <p>Hitung z-score BB/U, PB-TB/U, BB/PB-TB, dan IMT/U per anak (Standar WHO 2006, 0–60 bulan)</p>
+    </div>
+  </div>
+  <div class="stripe"></div>
 </header>
 <main>
   <div class="privacy">🔒 <div><b>Data tidak dikirim ke mana pun.</b> Semua perhitungan berjalan di browser perangkat ini. Setelah dibuka sekali, aplikasi bisa dipakai tanpa internet. Data hilang saat halaman ditutup, kecuali Ibu/Bapak mengunduh hasilnya.</div></div>
@@ -127,7 +140,11 @@
     <p class="sub" style="margin:0">Mengikuti algoritma WHO Anthro (igrowup): tabel LMS harian, umur = bulan × 30,4375; koreksi PB/TB ±0,7 cm; BB/PB untuk &lt;24 bulan (731 hari), BB/TB untuk ≥24 bulan, interpolasi per 0,1 cm; rumus terkoreksi untuk z &gt;+3/&lt;−3 (BB/U, BB/PB-TB, IMT/U). Batas flag: BB/U &lt;−6/&gt;+5, PB-TB/U &lt;−6/&gt;+6, BB/PB-TB dan IMT/U &lt;−5/&gt;+5. Hasil sudah diuji sama dengan output resmi WHO pada 498 data uji (4 indikator, selisih 0,00).</p>
   </section>
 </main>
-<footer>Z-Skor Balita · bekerja offline · data tetap di perangkat Anda</footer>
+<footer>
+  <div>Developed by : <span class="dev">Manjilala, S.Gz, M.Gizi</span></div>
+  <div>Jurusan Gizi · Poltekkes Kemenkes Makassar</div>
+  <div style="margin-top:4px">Z-Skor Balita · bekerja offline · data tetap di perangkat Anda</div>
+</footer>
 
 <script src="xlsx.full.min.js"></script>
 <script src="who-lms.js"></script>
