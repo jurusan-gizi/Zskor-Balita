@@ -1,7 +1,7 @@
 Z-SKOR BALITA — pengolah z-score WHO 2006 (offline, data tetap di perangkat)
 
 Cara pasang (GitHub Pages):
-1. Buat repository baru, unggah SEMUA file di folder ini (index.html, logo-poltekkes.png, zscore.js, sav.js, who-lms.js,
+1. Buat repository baru, unggah SEMUA file di folder ini (index.html, logo-poltekkes.png, zscore.js, sav.js, xlsxw.js, who-lms.js,
    xlsx.full.min.js, sw.js, manifest.json, icon-192.png, icon-512.png).
 2. Settings > Pages > Branch: main / root > Save.
 3. Buka link-nya sekali (perlu internet), lalu "Install aplikasi" / "Tambahkan ke layar utama".

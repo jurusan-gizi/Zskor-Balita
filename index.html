@@ -183,6 +183,7 @@
 <script src="who-lms.js"></script>
 <script src="zscore.js"></script>
 <script src="sav.js"></script>
+<script src="xlsxw.js"></script>
 <script>
 (function(){
   const $ = id => document.getElementById(id);
@@ -425,21 +426,21 @@
   }
 
   // ---------- Ekspor ----------
-  function buildAoa(){
+  function outHeader(){
     const withCat = $('withcat').checked;
-    const outH = headers.concat(['_umur_hari','_umur_bulan','_pbtb_koreksi','_imt','_zbbu','_ztbu','_zbbtb','_zimtu','_flag_bbu','_flag_tbu','_flag_bbtb','_flag_imtu']);
-    if (withCat) outH.push('_kat_bbu','_kat_tbu','_kat_bbtb','_kat_imtu');
-    outH.push('_catatan');
-    const aoa = [outH];
-    rows.forEach((r,i) => {
-      const x = results[i];
-      const base = headers.map((_,c) => r[c] instanceof Date ? isoDate(r[c]) : r[c]);
-      const add = [x.ageDays, x.ageMonths, x.clenhei, x.bmi, x.waz, x.haz, x.whz, x.baz, x.fwaz, x.fhaz, x.fwhz, x.fbaz];
-      if (withCat) add.push(x.fwaz===0?ZScore.catWAZ(x.waz):'', x.fhaz===0?ZScore.catHAZ(x.haz):'', x.fwhz===0?ZScore.catWHZ(x.whz):'', x.fbaz===0?ZScore.catBAZ(x.baz):'');
-      add.push(x.note);
-      aoa.push(base.concat(add.map(v => v === null ? '' : v)));
-    });
-    return aoa;
+    const h = headers.concat(['_umur_hari','_umur_bulan','_pbtb_koreksi','_imt','_zbbu','_ztbu','_zbbtb','_zimtu','_flag_bbu','_flag_tbu','_flag_bbtb','_flag_imtu']);
+    if (withCat) h.push('_kat_bbu','_kat_tbu','_kat_bbtb','_kat_imtu');
+    h.push('_catatan');
+    return h;
+  }
+  function outRow(i){
+    const withCat = $('withcat').checked;
+    const r = rows[i], x = results[i];
+    const base = headers.map((_,c) => r[c] instanceof Date ? isoDate(r[c]) : r[c]);
+    const add = [x.ageDays, x.ageMonths, x.clenhei, x.bmi, x.waz, x.haz, x.whz, x.baz, x.fwaz, x.fhaz, x.fwhz, x.fbaz];
+    if (withCat) add.push(x.fwaz===0?ZScore.catWAZ(x.waz):'', x.fhaz===0?ZScore.catHAZ(x.haz):'', x.fwhz===0?ZScore.catWHZ(x.whz):'', x.fbaz===0?ZScore.catBAZ(x.baz):'');
+    add.push(x.note);
+    return base.concat(add.map(v => v === null ? '' : v));
   }
   function stamp(){ const d = new Date(); return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0'); }
   // Simpan file: (1) dialog "Simpan sebagai" bila didukung, (2) unduhan biasa, (3) tautan cadangan, (4) Bagikan (HP)
@@ -471,21 +472,22 @@
   function busy(btn, on){ btn.disabled = on; btn.dataset.t = btn.dataset.t || btn.textContent; btn.textContent = on ? 'Menyiapkan…' : btn.dataset.t; }
   function showErr(e){ $('dlnote').innerHTML = '<span style="color:var(--bad)">⚠ Gagal membuat file: ' + esc(e && e.message || e) + '</span>'; console.error(e); }
 
+  const prog = (btn, f) => { btn.textContent = 'Menyiapkan… ' + Math.round(f * 100) + '%'; };
   $('dlx').onclick = () => {
     const btn = $('dlx'); busy(btn, true);
     setTimeout(async () => {
       try {
-        const ws = XLSX.utils.aoa_to_sheet(buildAoa());
-        const nb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(nb, ws, 'zscore');
-        const info = XLSX.utils.aoa_to_sheet([
-          ['Keterangan kolom'],['_zbbu','Z-score berat badan menurut umur'],['_ztbu','Z-score panjang/tinggi badan menurut umur'],
+        if (rows.length > 1048575) throw new Error('Data lebih dari 1.048.575 baris (batas Excel). Gunakan Unduh CSV.');
+        const info = [['_zbbu','Z-score berat badan menurut umur'],['_ztbu','Z-score panjang/tinggi badan menurut umur'],
           ['_zbbtb','Z-score berat badan menurut panjang/tinggi badan'],['_zimtu','Z-score IMT menurut umur'],
           ['_flag_*','1 = di luar batas biologis WHO (cek ulang data); 0 = wajar'],['_pbtb_koreksi','PB/TB setelah koreksi ±0,7 cm'],
-          ['Standar','WHO Child Growth Standards 2006; kategori PMK No. 2 Tahun 2020'],['Dibuat', new Date().toLocaleString('id-ID')]]);
-        XLSX.utils.book_append_sheet(nb, info, 'keterangan');
-        const out = XLSX.write(nb, { bookType: 'xlsx', type: 'array', compression: true });
-        const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-        await saveBlob(new Blob([out], { type: mime }), 'hasil-zscore-' + stamp() + '.xlsx', mime, 'xlsx');
+          ['Standar','WHO Child Growth Standards 2006; kategori PMK No. 2 Tahun 2020'],['Jumlah baris', rows.length],['Dibuat', new Date().toLocaleString('id-ID')]];
+        const blob = await XlsxW.writeXlsx([
+          { name: 'zscore', header: outHeader(), rowCount: rows.length, getRow: outRow },
+          { name: 'keterangan', header: ['Kolom', 'Keterangan'], rowCount: info.length, getRow: i => info[i] }
+        ], f => prog(btn, f));
+        btn.textContent = 'Menyimpan…';
+        await saveBlob(blob, 'hasil-zscore-' + stamp() + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx');
       } catch (e) { showErr(e); }
       busy(btn, false);
     }, 30);
@@ -494,8 +496,8 @@
     const btn = $('dlc'); busy(btn, true);
     setTimeout(async () => {
       try {
-        const csv = XLSX.utils.sheet_to_csv(XLSX.utils.aoa_to_sheet(buildAoa()));
-        await saveBlob(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }), 'hasil-zscore-' + stamp() + '.csv', 'text/csv', 'csv');
+        const blob = await XlsxW.writeCsv(outHeader(), rows.length, outRow, f => prog(btn, f));
+        await saveBlob(blob, 'hasil-zscore-' + stamp() + '.csv', 'text/csv', 'csv');
       } catch (e) { showErr(e); }
       busy(btn, false);
     }, 30);
