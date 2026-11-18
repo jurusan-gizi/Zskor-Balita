@@ -64,6 +64,16 @@
   .cat{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
   .cat table td:last-child,.cat table th:last-child,.cat table td:nth-child(2),.cat table th:nth-child(2){text-align:right}
   .hidden{display:none}
+  .fmt{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .fmt label{display:flex;gap:12px;align-items:center;border:2px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;transition:.15s}
+  .fmt label:hover{border-color:var(--biru)}
+  .fmt input{display:none}
+  .fmt label:has(input:checked){border-color:var(--tosca);background:var(--soft)}
+  .fmt .ic{width:40px;height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex:none}
+  .fmt b{display:block;font-size:14.5px}
+  .fmt small{color:var(--mute);font-size:12.5px}
+  .vl{display:block;font-size:11.5px;color:var(--pri2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  @media (max-width:560px){.fmt{grid-template-columns:1fr}}
   footer{color:var(--mute);font-size:12.5px;text-align:center;padding:10px}
   .pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:20px;background:var(--soft);color:var(--pri2);margin-left:6px}
 </style>
@@ -84,10 +94,14 @@
 
   <section class="card">
     <h2><span class="step">1</span>Pilih file data</h2>
-    <p class="sub">Format Excel (.xlsx/.xls) atau CSV. Baris pertama berisi nama kolom.</p>
+    <p class="sub">Pilih jenis file, lalu pilih file datanya.</p>
+    <div class="fmt">
+      <label><input type="radio" name="fmt" value="excel" checked><span class="ic" style="background:var(--tosca)">XLS</span><span><b>Excel / CSV</b><small>.xlsx, .xls, .csv · baris pertama berisi nama kolom</small></span></label>
+      <label><input type="radio" name="fmt" value="spss"><span class="ic" style="background:#8aa51b">SAV</span><span><b>SPSS</b><small>.sav, .zsav · nama variabel &amp; label nilai ikut terbaca</small></span></label>
+    </div>
     <div id="drop" class="drop">
       <div style="font-size:28px">📂</div>
-      <div><b>Klik untuk memilih file</b> atau seret file ke sini</div>
+      <div><b id="droptxt">Klik untuk memilih file Excel/CSV</b> atau seret file ke sini</div>
       <div class="info" id="fileinfo">Belum ada file</div>
     </div>
     <input id="file" type="file" accept=".xlsx,.xls,.csv,.txt" class="hidden">
@@ -109,7 +123,7 @@
       </div>
     </div>
     <div class="grid" id="mapgrid"></div>
-    <div class="info" style="margin-top:10px">Kode yang dikenali — JK: 1/L/laki-laki dan 2/P/perempuan. Cara ukur: L/PB/terlentang dan H/TB/berdiri (kalau kosong, dianggap sesuai umur). Oedema: Y/ya/1.</div>
+    <div class="info" style="margin-top:10px">Kode yang dikenali — JK: 1/L/laki-laki dan 2/P/perempuan. Cara ukur: L/PB/terlentang dan H/TB/berdiri (kalau kosong, dianggap sesuai umur). Oedema: Y/ya/1. File SPSS: bila kolom punya label nilai (mis. 1=Laki-laki), label itu yang dipakai; kode missing SPSS (mis. 999) otomatis dianggap kosong.</div>
     <div class="info" style="margin-top:4px">Tanggal: format tanggal Excel, atau teks YYYY-MM-DD / DD/MM/YYYY (hari dulu, baru bulan).</div>
     <div id="mapwarn"></div>
     <div class="row" style="margin-top:14px"><button id="run" type="button">Proses z-score</button><span class="info" id="runinfo"></span></div>
@@ -149,10 +163,11 @@
 <script src="xlsx.full.min.js"></script>
 <script src="who-lms.js"></script>
 <script src="zscore.js"></script>
+<script src="sav.js"></script>
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  let wb = null, rows = [], headers = [], results = [], page = 0, view = [];
+  let wb = null, rows = [], headers = [], results = [], page = 0, view = [], varLabels = [], valLabels = [];
   const PAGE = 100;
 
   const FIELDS = [
@@ -177,10 +192,34 @@
   drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); };
   file.onchange = () => { if (file.files[0]) readFile(file.files[0]); };
 
+  // pilihan format
+  document.querySelectorAll('input[name=fmt]').forEach(r => r.onchange = setFmt);
+  function setFmt(){
+    const sp = document.querySelector('input[name=fmt]:checked').value === 'spss';
+    file.accept = sp ? '.sav,.zsav' : '.xlsx,.xls,.csv,.txt';
+    $('droptxt').textContent = sp ? 'Klik untuk memilih file SPSS (.sav)' : 'Klik untuk memilih file Excel/CSV';
+    $('tpl').classList.toggle('hidden', sp);
+  }
+  function chooseFmt(v){ document.querySelector('input[name=fmt][value='+v+']').checked = true; setFmt(); }
+
   function readFile(f){
     $('fileinfo').textContent = 'Membaca ' + f.name + ' …';
+    const isSav = /\.z?sav$/i.test(f.name);
+    chooseFmt(isSav ? 'spss' : 'excel');
     const rd = new FileReader();
-    rd.onload = e => {
+    rd.onload = async e => {
+      if (isSav){
+        try {
+          const t0 = performance.now();
+          const res = await SavReader.read(e.target.result);
+          wb = null; $('sheetwrap').classList.add('hidden');
+          headers = res.headers; rows = res.rows;
+          varLabels = res.labels; valLabels = res.valueLabels;
+          $('fileinfo').innerHTML = '<b>'+esc(f.name)+'</b> · SPSS · ' + rows.length.toLocaleString('id-ID') + ' kasus · ' + headers.length + ' variabel · dibaca ' + ((performance.now()-t0)/1000).toFixed(1) + ' dtk';
+          afterLoad();
+        } catch(err){ $('fileinfo').textContent = 'Gagal membaca file SPSS: ' + err.message; }
+        return;
+      }
       try {
         wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true, raw: /\.csv$|\.txt$/i.test(f.name)});
       } catch(err){ $('fileinfo').textContent = 'Gagal membaca file: ' + err.message; return; }
@@ -199,17 +238,36 @@
     if (!aoa.length){ $('fileinfo').textContent = 'Sheet kosong'; return; }
     headers = aoa[0].map((h,i) => String(h).trim() || ('Kolom' + (i+1)));
     rows = aoa.slice(1).filter(r => r.some(v => v !== '' && v !== null));
+    varLabels = headers.map(() => ''); valLabels = headers.map(() => null);
     $('fileinfo').innerHTML = (fname ? '<b>'+esc(fname)+'</b> · ' : '') + 'sheet "' + esc(name) + '" · ' + rows.length.toLocaleString('id-ID') + ' baris · ' + headers.length + ' kolom';
+    afterLoad();
+  }
+  function afterLoad(){
     buildMap();
     $('mapcard').classList.remove('hidden');
     $('rescard').classList.add('hidden');
   }
+  // nilai sel; untuk kolom kode (JK, cara ukur, oedema) pakai label nilai SPSS bila labelnya bisa dikenali
+  function cellVal(r, c, parser){
+    const v = r[c];
+    if (!parser || v === '' || v === null || v === undefined) return v;
+    const map = valLabels[c];
+    if (map){
+      const k = typeof v === 'number' ? String(+v.toPrecision(15)) : String(v).trim();
+      const lab = map[k];
+      if (lab !== undefined && parser(lab) !== null && parser(lab) !== false) return lab;
+    }
+    return v;
+  }
+  const oedParse = x => /^(ya|ada|yes|y|1)\b/i.test(String(x).trim()) ? true : (/^(tidak|tdk|no|n|t|0)\b/i.test(String(x).trim()) ? 'no' : null);
 
   // ---------- Mapping ----------
   function guess(f){
     const H = headers.map(norm);
     for (const k of f.keys){ const i = H.indexOf(k); if (i >= 0) return i; }
     for (const k of f.keys){ if (k.length < 3) continue; const i = H.findIndex(h => h.includes(k)); if (i >= 0) return i; }
+    const LB = varLabels.map(l => norm(l || ''));
+    for (const k of f.keys){ if (k.length < 3) continue; const i = LB.findIndex(h => h && h.includes(k)); if (i >= 0) return i; }
     return -1;
   }
   function buildMap(){
@@ -220,8 +278,10 @@
       const wrap = document.createElement('label'); wrap.className = 'f'; wrap.dataset.k = f.k;
       wrap.innerHTML = '<span>' + f.label + (f.req === true ? ' <em>*</em>' : '') + '</span>';
       const s = document.createElement('select'); s.id = 'm_' + f.k;
-      s.innerHTML = '<option value="-1">— tidak ada —</option>' + headers.map((h,i) => '<option value="'+i+'">'+esc(h)+'</option>').join('');
-      s.value = gi; s.onchange = checkMap; wrap.appendChild(s); g.appendChild(wrap);
+      s.innerHTML = '<option value="-1">— tidak ada —</option>' + headers.map((h,i) => '<option value="'+i+'">'+esc(h)+(varLabels[i] ? ' — '+esc(varLabels[i].slice(0,45)) : '')+'</option>').join('');
+      s.value = gi; s.onchange = () => { showVL(f.k); checkMap(); }; wrap.appendChild(s);
+      const vl = document.createElement('small'); vl.className = 'vl'; vl.id = 'vl_' + f.k; wrap.appendChild(vl);
+      g.appendChild(wrap); showVL(f.k);
     });
     // pilih sumber umur otomatis
     const has = k => +$('m_'+k).value >= 0;
@@ -240,6 +300,12 @@
       el.querySelector('span').innerHTML = FIELDS.find(f=>f.k===k).label + (vis[k] ? ' <em>*</em>' : '');
     });
   }
+  function showVL(k){
+    const el = $('vl_' + k); if (!el) return;
+    const c = +$('m_' + k).value, map = c >= 0 ? valLabels[c] : null;
+    el.textContent = map ? 'Label: ' + Object.entries(map).slice(0,4).map(([a,b]) => a + '=' + b).join(', ') : '';
+    el.title = map ? Object.entries(map).map(([a,b]) => a + '=' + b).join(', ') : '';
+  }
   function mapping(){ const m = {}; FIELDS.forEach(f => m[f.k] = +$('m_'+f.k).value); return m; }
   function checkMap(){
     const m = mapping(), s = ageSrc(), miss = [];
@@ -248,12 +314,12 @@
     if (miss.length) w.push('Kolom wajib belum dipilih: <b>' + miss.join(', ') + '</b>');
     if (m.measure < 0) w.push('Kolom cara ukur tidak ada: koreksi ±0,7 cm tidak diterapkan (dianggap PB untuk &lt;24 bln dan TB untuk ≥24 bln).');
     if (m.sex >= 0){
-      const vals = new Set(rows.slice(0,2000).map(r => r[m.sex]).filter(v => v!=='' && v!==null).map(v=>String(v).trim()));
+      const vals = new Set(rows.slice(0,2000).map(r => cellVal(r, m.sex, ZScore.parseSex)).filter(v => v!=='' && v!==null).map(v=>String(v).trim()));
       const badv = [...vals].filter(v => !ZScore.parseSex(v)).slice(0,5);
       if (badv.length) w.push('Nilai JK tidak dikenali: <b>' + badv.map(esc).join(', ') + '</b>. Ubah ke 1/2 atau L/P.');
     }
     if (m.measure >= 0){
-      const vals = new Set(rows.slice(0,2000).map(r => r[m.measure]).filter(v => v!=='' && v!==null).map(v=>String(v).trim()));
+      const vals = new Set(rows.slice(0,2000).map(r => cellVal(r, m.measure, ZScore.parseMeasure)).filter(v => v!=='' && v!==null).map(v=>String(v).trim()));
       const badv = [...vals].filter(v => !ZScore.parseMeasure(v)).slice(0,5);
       if (badv.length) w.push('Nilai cara ukur tidak dikenali: <b>' + badv.map(esc).join(', ') + '</b> (akan dianggap kosong).');
     }
@@ -272,7 +338,9 @@
       const end = Math.min(i + 2000, rows.length);
       for (; i < end; i++){
         const r = rows[i];
-        const inp = { sex:get(r,'sex'), weight:get(r,'weight'), lenhei:get(r,'lenhei'), measure:get(r,'measure'), oedema:get(r,'oedema') };
+        const inp = { sex: m.sex>=0 ? cellVal(r, m.sex, ZScore.parseSex) : undefined, weight:get(r,'weight'), lenhei:get(r,'lenhei'),
+          measure: m.measure>=0 ? cellVal(r, m.measure, ZScore.parseMeasure) : undefined,
+          oedema: m.oedema>=0 ? cellVal(r, m.oedema, oedParse) : undefined };
         if (s === 'dates'){ inp.dob = get(r,'dob'); inp.dov = get(r,'dov'); }
         else if (s === 'months') inp.ageMonths = get(r,'ageMonths');
         else inp.ageDays = get(r,'ageDays');

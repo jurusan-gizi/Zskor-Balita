@@ -67,23 +67,30 @@
   function parseSex(v) {
     if (v === null || v === undefined) return null;
     const s = String(v).trim().toLowerCase();
-    if (['1', 'l', 'lk', 'laki', 'laki-laki', 'laki laki', 'm', 'male', 'pria', 'boy'].includes(s)) return '1';
-    if (['2', 'p', 'pr', 'perempuan', 'f', 'female', 'wanita', 'girl'].includes(s)) return '2';
+    if (['1', 'l', 'lk', 'm', 'male', 'boy'].includes(s)) return '1';
+    if (['2', 'p', 'pr', 'f', 'female', 'girl'].includes(s)) return '2';
+    // label teks (mis. dari label nilai SPSS): cek perempuan dulu ("female" mengandung "male")
+    if (/perempuan|wanita|female|girl/.test(s)) return '2';
+    if (/laki|pria|\bmale\b|boy/.test(s)) return '1';
     return null;
   }
 
   function parseMeasure(v) {
     if (v === null || v === undefined) return null;
     const s = String(v).trim().toLowerCase();
-    if (['l', 'pb', 'terlentang', 'telentang', 'berbaring', 'recumbent', 'length', '1'].includes(s)) return 'l';
-    if (['h', 'tb', 'berdiri', 'standing', 'height', '2'].includes(s)) return 'h';
+    if (['l', 'pb', '1'].includes(s)) return 'l';
+    if (['h', 'tb', '2'].includes(s)) return 'h';
+    if (/terlentang|telentang|berbaring|baring|recumbent|length|\bpb\b|panjang/.test(s)) return 'l';
+    if (/berdiri|standing|height|\btb\b|tinggi/.test(s)) return 'h';
     return null;
   }
 
   function parseOedema(v) {
     if (v === null || v === undefined) return false;
     const s = String(v).trim().toLowerCase();
-    return ['y', 'ya', 'yes', '1', 'true', 'ada', '+'].includes(s);
+    if (['y', 'ya', 'yes', '1', 'true', 'ada', '+'].includes(s)) return true;
+    if (/^(tidak|tdk|no|bukan|t$|n$|0$)/.test(s)) return false;
+    return /^(ya|ada|yes)\b/.test(s);
   }
 
   // Tanggal: objek Date, serial Excel, "YYYY-MM-DD", "DD/MM/YYYY", "DD-MM-YYYY"
