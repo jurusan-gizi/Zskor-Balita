@@ -64,6 +64,8 @@
   .cat{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
   .cat table td:last-child,.cat table th:last-child,.cat table td:nth-child(2),.cat table th:nth-child(2){text-align:right}
   .hidden{display:none}
+  .keep{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fbfde8;border:1px solid #e6ecb0;border-radius:10px;padding:10px 12px;margin-top:14px;font-size:14px}
+  #dlnote a{color:var(--pri);font-weight:600}
   .fmt{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
   .fmt label{display:flex;gap:12px;align-items:center;border:2px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;transition:.15s}
   .fmt label:hover{border-color:var(--biru)}
@@ -90,7 +92,13 @@
   <div class="stripe"></div>
 </header>
 <main>
-  <div class="privacy">🔒 <div><b>Data tidak dikirim ke mana pun.</b> Semua perhitungan berjalan di browser perangkat ini. Setelah dibuka sekali, aplikasi bisa dipakai tanpa internet. Data hilang saat halaman ditutup, kecuali Ibu/Bapak mengunduh hasilnya.</div></div>
+  <div class="privacy">🔒 <div><b>Data tidak dikirim ke mana pun.</b> Semua perhitungan berjalan di browser perangkat ini. Setelah dibuka sekali, aplikasi bisa dipakai tanpa internet. Data bisa disimpan sementara <b>di browser perangkat ini saja</b> (pilih masa simpannya sebelum memproses), dan terhapus otomatis setelah masa simpan habis.</div></div>
+
+  <section class="card hidden" id="restore" style="border-color:var(--tosca)">
+    <h2>💾 Ada data tersimpan di browser ini</h2>
+    <p class="sub" id="restoreinfo"></p>
+    <div class="row"><button id="rs_open" type="button">Buka data tersimpan</button><button id="rs_del" class="ghost" type="button">Hapus sekarang</button></div>
+  </section>
 
   <section class="card">
     <h2><span class="step">1</span>Pilih file data</h2>
@@ -128,6 +136,15 @@
     <div id="mapwarn"></div>
     <div class="row" style="margin-top:14px"><button id="run" type="button">Proses z-score</button><span class="info" id="runinfo"></span></div>
     <div class="bar hidden" id="bar"><div></div></div>
+    <div class="keep">
+      <span>💾 <b>Simpan di browser ini</b></span>
+      <select id="keep" style="width:auto">
+        <option value="0">Tidak disimpan</option><option value="1">1 hari</option><option value="3">3 hari</option>
+        <option value="7" selected>7 hari</option><option value="14">14 hari</option><option value="30">30 hari</option>
+      </select>
+      <span class="info" id="keepinfo"></span>
+      <button id="keepdel" class="ghost hidden" type="button" style="padding:4px 12px">Hapus data tersimpan</button>
+    </div>
   </section>
 
   <section class="card hidden" id="rescard">
@@ -137,8 +154,10 @@
     <div class="row" style="margin-bottom:14px">
       <button id="dlx" type="button">Unduh Excel (.xlsx)</button>
       <button id="dlc" class="ghost" type="button">Unduh CSV</button>
+      <button id="dlshare" class="ghost hidden" type="button">Bagikan / Simpan ke…</button>
       <label class="info" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="withcat" checked> sertakan kategori status gizi (PMK 2/2020)</label>
     </div>
+    <div id="dlnote" class="info" style="margin:-6px 0 12px"></div>
     <h3 style="font-size:14.5px;margin:6px 0 8px">Sebaran kategori <span class="pill">tanpa bobot survei, data ber-flag dikeluarkan</span></h3>
     <div class="cat" id="cats"></div>
     <h3 style="font-size:14.5px;margin:18px 0 8px">Pratinjau data <span class="info" id="pageinfo"></span></h3>
@@ -203,7 +222,7 @@
   function chooseFmt(v){ document.querySelector('input[name=fmt][value='+v+']').checked = true; setFmt(); }
 
   function readFile(f){
-    $('fileinfo').textContent = 'Membaca ' + f.name + ' …';
+    $('fileinfo').textContent = 'Membaca ' + f.name + ' …'; currentFile = f.name;
     const isSav = /\.z?sav$/i.test(f.name);
     chooseFmt(isSav ? 'spss' : 'excel');
     const rd = new FileReader();
@@ -353,6 +372,7 @@
         $('run').disabled = false;
         $('runinfo').textContent = 'Selesai: ' + rows.length.toLocaleString('id-ID') + ' baris dalam ' + ((performance.now()-t0)/1000).toFixed(1) + ' detik';
         showResults();
+        autoSave();
       }
     })();
   };
@@ -422,32 +442,135 @@
     return aoa;
   }
   function stamp(){ const d = new Date(); return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0'); }
+  // Simpan file: (1) dialog "Simpan sebagai" bila didukung, (2) unduhan biasa, (3) tautan cadangan, (4) Bagikan (HP)
+  let lastUrl = null, lastFile = null;
+  async function saveBlob(blob, name, mime, ext){
+    $('dlnote').textContent = '';
+    if (window.showSaveFilePicker && window.self === window.top){
+      try {
+        const h = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: ext.toUpperCase(), accept: { [mime]: ['.' + ext] } }] });
+        const w = await h.createWritable(); await w.write(blob); await w.close();
+        $('dlnote').innerHTML = '✅ Tersimpan sebagai <b>' + esc(h.name || name) + '</b>';
+        return;
+      } catch (e) { if (e && e.name === 'AbortError') return; /* lanjut ke cara biasa */ }
+    }
+    if (lastUrl) URL.revokeObjectURL(lastUrl);
+    lastUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = lastUrl; a.download = name; a.rel = 'noopener'; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 100);
+    $('dlnote').innerHTML = 'Unduhan <b>' + esc(name) + '</b> (' + (blob.size/1048576).toFixed(1).replace('.', ',') + ' MB) dimulai. Kalau tidak muncul, <a href="' + lastUrl + '" download="' + esc(name) + '" target="_blank">klik di sini</a>' + (navigator.canShare ? ' atau pakai tombol <b>Bagikan / Simpan ke…</b>.' : '.');
+    try {
+      lastFile = new File([blob], name, { type: mime });
+      $('dlshare').classList.toggle('hidden', !(navigator.canShare && navigator.canShare({ files: [lastFile] })));
+    } catch (e) { $('dlshare').classList.add('hidden'); }
+  }
+  $('dlshare').onclick = async () => {
+    try { await navigator.share({ files: [lastFile], title: lastFile.name }); }
+    catch (e) { if (e.name !== 'AbortError') $('dlnote').textContent = 'Gagal membagikan: ' + e.message; }
+  };
+  function busy(btn, on){ btn.disabled = on; btn.dataset.t = btn.dataset.t || btn.textContent; btn.textContent = on ? 'Menyiapkan…' : btn.dataset.t; }
+  function showErr(e){ $('dlnote').innerHTML = '<span style="color:var(--bad)">⚠ Gagal membuat file: ' + esc(e && e.message || e) + '</span>'; console.error(e); }
+
   $('dlx').onclick = () => {
-    const ws = XLSX.utils.aoa_to_sheet(buildAoa());
-    const nb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(nb, ws, 'zscore');
-    const info = XLSX.utils.aoa_to_sheet([
-      ['Keterangan kolom'],['_zbbu','Z-score berat badan menurut umur'],['_ztbu','Z-score panjang/tinggi badan menurut umur'],
-      ['_zbbtb','Z-score berat badan menurut panjang/tinggi badan'],['_zimtu','Z-score IMT menurut umur'],
-      ['_flag_*','1 = di luar batas biologis WHO (cek ulang data); 0 = wajar'],['_pbtb_koreksi','PB/TB setelah koreksi ±0,7 cm'],
-      ['Standar','WHO Child Growth Standards 2006; kategori PMK No. 2 Tahun 2020'],['Dibuat', new Date().toLocaleString('id-ID')]]);
-    XLSX.utils.book_append_sheet(nb, info, 'keterangan');
-    XLSX.writeFile(nb, 'hasil-zscore-' + stamp() + '.xlsx', {compression:true});
+    const btn = $('dlx'); busy(btn, true);
+    setTimeout(async () => {
+      try {
+        const ws = XLSX.utils.aoa_to_sheet(buildAoa());
+        const nb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(nb, ws, 'zscore');
+        const info = XLSX.utils.aoa_to_sheet([
+          ['Keterangan kolom'],['_zbbu','Z-score berat badan menurut umur'],['_ztbu','Z-score panjang/tinggi badan menurut umur'],
+          ['_zbbtb','Z-score berat badan menurut panjang/tinggi badan'],['_zimtu','Z-score IMT menurut umur'],
+          ['_flag_*','1 = di luar batas biologis WHO (cek ulang data); 0 = wajar'],['_pbtb_koreksi','PB/TB setelah koreksi ±0,7 cm'],
+          ['Standar','WHO Child Growth Standards 2006; kategori PMK No. 2 Tahun 2020'],['Dibuat', new Date().toLocaleString('id-ID')]]);
+        XLSX.utils.book_append_sheet(nb, info, 'keterangan');
+        const out = XLSX.write(nb, { bookType: 'xlsx', type: 'array', compression: true });
+        const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        await saveBlob(new Blob([out], { type: mime }), 'hasil-zscore-' + stamp() + '.xlsx', mime, 'xlsx');
+      } catch (e) { showErr(e); }
+      busy(btn, false);
+    }, 30);
   };
   $('dlc').onclick = () => {
-    const csv = XLSX.utils.sheet_to_csv(XLSX.utils.aoa_to_sheet(buildAoa()));
-    const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'hasil-zscore-' + stamp() + '.csv'; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    const btn = $('dlc'); busy(btn, true);
+    setTimeout(async () => {
+      try {
+        const csv = XLSX.utils.sheet_to_csv(XLSX.utils.aoa_to_sheet(buildAoa()));
+        await saveBlob(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }), 'hasil-zscore-' + stamp() + '.csv', 'text/csv', 'csv');
+      } catch (e) { showErr(e); }
+      busy(btn, false);
+    }, 30);
   };
-  $('tpl').onclick = () => {
+  $('tpl').onclick = async () => {
     const ws = XLSX.utils.aoa_to_sheet([
       ['id','jk','tgl_lahir','tgl_ukur','umur_bulan','bb','tb','cara_ukur','oedema'],
       ['A001',1,'2023-03-15','2026-08-10','',12.4,92.1,'TB','T'],
       ['A002',2,'2025-01-02','2026-08-10','',8.1,72.5,'PB','T'],
       ['A003','L','','','14',9.0,76.0,'PB','T']]);
     const nb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(nb, ws, 'data');
-    XLSX.writeFile(nb, 'contoh-format-zskor.xlsx');
+    const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    try { await saveBlob(new Blob([XLSX.write(nb, { bookType: 'xlsx', type: 'array' })], { type: mime }), 'contoh-format-zskor.xlsx', mime, 'xlsx'); }
+    catch (e) { alert('Gagal: ' + e.message); }
   };
+
+  // ---------- Simpan sementara di browser (IndexedDB) ----------
+  const DB = 'zskor-db', ST = 'sesi', KEY = 'terakhir', DAY = 86400000;
+  let currentFile = '';
+  function idb(){ return new Promise((ok, no) => { const r = indexedDB.open(DB, 1); r.onupgradeneeded = () => r.result.createObjectStore(ST); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }); }
+  async function dbDo(mode, fn){ const d = await idb(); return new Promise((ok, no) => { const t = d.transaction(ST, mode); const st = t.objectStore(ST); const r = fn(st); t.oncomplete = () => { ok(r && r.result); d.close(); }; t.onerror = () => { no(t.error); d.close(); }; t.onabort = () => { no(t.error); d.close(); }; }); }
+  const dbGet = () => dbDo('readonly', s => s.get(KEY));
+  const dbPut = v => dbDo('readwrite', s => s.put(v, KEY));
+  const dbDel = () => dbDo('readwrite', s => s.delete(KEY));
+  const tgl = t => new Date(t).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  async function autoSave(){
+    const days = +$('keep').value;
+    if (!days){ await dbDel().catch(()=>{}); $('keepinfo').textContent = 'Data tidak disimpan; hilang saat halaman ditutup.'; $('keepdel').classList.add('hidden'); return; }
+    const now = Date.now();
+    const m = mapping();
+    const rec = { v: 1, file: currentFile, saved: now, expires: now + days * DAY, days, headers, rows, varLabels, valLabels, mapping: m, ageSrc: ageSrc(), results };
+    try {
+      $('keepinfo').textContent = 'Menyimpan…';
+      await dbPut(rec);
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+      $('keepinfo').innerHTML = 'Tersimpan · otomatis terhapus <b>' + tgl(rec.expires) + '</b>';
+      $('keepdel').classList.remove('hidden');
+    } catch (e) {
+      $('keepinfo').innerHTML = '<span style="color:var(--bad)">Gagal menyimpan: ' + esc(e && e.message || e) + '</span>';
+    }
+  }
+  $('keep').onchange = () => { if (results.length) autoSave(); };
+  $('keepdel').onclick = async () => {
+    if (!confirm('Hapus data yang tersimpan di browser ini?')) return;
+    await dbDel().catch(()=>{}); $('keep').value = '0';
+    $('keepinfo').textContent = 'Data tersimpan sudah dihapus.'; $('keepdel').classList.add('hidden');
+  };
+
+  async function checkSaved(){
+    let rec; try { rec = await dbGet(); } catch (e) { return; }
+    if (!rec) return;
+    if (Date.now() > rec.expires){ await dbDel().catch(()=>{}); return; }
+    $('restoreinfo').innerHTML = '<b>' + esc(rec.file || 'data') + '</b> · ' + rec.rows.length.toLocaleString('id-ID') + ' baris · disimpan ' + tgl(rec.saved) + ' · terhapus otomatis <b>' + tgl(rec.expires) + '</b>';
+    $('restore').classList.remove('hidden');
+    $('rs_open').onclick = () => restore(rec);
+    $('rs_del').onclick = async () => { await dbDel().catch(()=>{}); $('restore').classList.add('hidden'); };
+  }
+  function restore(rec){
+    headers = rec.headers; rows = rec.rows; varLabels = rec.varLabels || headers.map(()=>''); valLabels = rec.valLabels || headers.map(()=>null);
+    currentFile = rec.file || ''; wb = null; $('sheetwrap').classList.add('hidden');
+    $('fileinfo').innerHTML = '<b>' + esc(currentFile) + '</b> · dibuka dari penyimpanan browser · ' + rows.length.toLocaleString('id-ID') + ' baris · ' + headers.length + ' kolom';
+    buildMap();
+    Object.entries(rec.mapping).forEach(([k, v]) => { const el = $('m_' + k); if (el){ el.value = v; showVL(k); } });
+    const ar = document.querySelector('input[name=agesrc][value=' + rec.ageSrc + ']'); if (ar) ar.checked = true;
+    showAgeFields(); checkMap();
+    $('mapcard').classList.remove('hidden');
+    results = rec.results; showResults();
+    $('keep').value = String(rec.days || 7);
+    $('keepinfo').innerHTML = 'Tersimpan · otomatis terhapus <b>' + tgl(rec.expires) + '</b>';
+    $('keepdel').classList.remove('hidden');
+    $('restore').classList.add('hidden');
+    $('rescard').scrollIntoView({ behavior: 'smooth' });
+  }
+  checkSaved();
 
   // ---------- util ----------
   function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }

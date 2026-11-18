@@ -12,6 +12,9 @@ Kalau perlu lokal di laptop: buka folder ini di terminal, jalankan  python -m ht
 lalu buka http://localhost:8000
 
 Catatan:
+- Simpan di browser: pilih masa simpan (1–30 hari) sebelum klik Proses. Data disimpan di browser
+  perangkat itu saja dan terhapus otomatis setelah masa simpan habis. Jangan aktifkan di komputer bersama.
+- Unduh: bila unduhan tidak muncul, pakai tautan 'klik di sini' atau tombol 'Bagikan / Simpan ke…' (HP).
 - Format masukan: Excel/CSV atau SPSS (.sav / .zsav). File SPSS dibaca langsung di browser,
   termasuk label variabel, label nilai, tanggal, dan kode missing.
 - Data hanya diolah di browser, tidak diunggah ke server mana pun (termasuk GitHub).
