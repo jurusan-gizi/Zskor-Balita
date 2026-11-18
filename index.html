@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Z-Skor Balita — Pengolah Z-Score WHO (Offline)</title>
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root{--bg:#f6f7f5;--card:#fff;--ink:#1c2321;--mute:#5d6b67;--line:#e2e6e3;--pri:#0f766e;--pri2:#115e59;--soft:#e6f4f1;--warn:#b45309;--warnbg:#fff7ea;--bad:#b91c1c}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5}
+  header{background:var(--pri);color:#fff;padding:18px 20px}
+  header h1{margin:0;font-size:20px;letter-spacing:.2px}
+  header p{margin:2px 0 0;opacity:.85;font-size:13.5px}
+  main{max-width:1100px;margin:0 auto;padding:18px 16px 60px}
+  .privacy{display:flex;gap:10px;align-items:flex-start;background:var(--soft);border:1px solid #c7e6df;border-radius:10px;padding:10px 14px;font-size:13.5px;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  .card h2{margin:0 0 4px;font-size:16px}
+  .card .sub{color:var(--mute);font-size:13.5px;margin:0 0 14px}
+  .step{display:inline-flex;width:24px;height:24px;border-radius:50%;background:var(--pri);color:#fff;font-size:13px;align-items:center;justify-content:center;margin-right:8px;font-weight:600}
+  .drop{border:2px dashed #b9c7c2;border-radius:10px;padding:26px;text-align:center;cursor:pointer;transition:.15s}
+  .drop:hover,.drop.over{border-color:var(--pri);background:#f0faf7}
+  .drop b{color:var(--pri)}
+  button,.btn{font:inherit;border:1px solid var(--pri);background:var(--pri);color:#fff;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:500}
+  button:hover{background:var(--pri2)}
+  button.ghost{background:#fff;color:var(--pri)}
+  button.ghost:hover{background:var(--soft)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px 16px}
+  label.f{display:block;font-size:13px;color:var(--mute)}
+  label.f span{display:block;margin-bottom:3px;color:var(--ink);font-weight:500}
+  label.f em{font-style:normal;color:var(--bad)}
+  select,input[type=text]{font:inherit;width:100%;padding:7px 9px;border:1px solid #cfd6d3;border-radius:7px;background:#fff}
+  .seg{display:inline-flex;border:1px solid #cfd6d3;border-radius:8px;overflow:hidden}
+  .seg label{padding:6px 12px;cursor:pointer;font-size:13.5px;border-right:1px solid #cfd6d3}
+  .seg label:last-child{border-right:0}
+  .seg input{display:none}
+  .seg input:checked+span{color:var(--pri);font-weight:600}
+  .seg label:has(input:checked){background:var(--soft)}
+  .info{font-size:13px;color:var(--mute)}
+  .warnbox{background:var(--warnbg);border:1px solid #f3d9a8;color:#7a4a06;border-radius:8px;padding:8px 12px;font-size:13.5px;margin-top:10px}
+  .bar{height:8px;background:#e5ebe9;border-radius:6px;overflow:hidden;margin-top:10px}
+  .bar>div{height:100%;width:0;background:var(--pri);transition:width .1s}
+  .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .stat{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .stat .n{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
+  .stat .l{font-size:12.5px;color:var(--mute)}
+  table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+  th,td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;white-space:nowrap}
+  th{background:#f2f5f4;position:sticky;top:0;font-weight:600}
+  .tblwrap{overflow:auto;max-height:460px;border:1px solid var(--line);border-radius:8px}
+  td.z{text-align:right}
+  td.flag{color:var(--bad);font-weight:600}
+  .cat{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+  .cat table td:last-child,.cat table th:last-child,.cat table td:nth-child(2),.cat table th:nth-child(2){text-align:right}
+  .hidden{display:none}
+  footer{color:var(--mute);font-size:12.5px;text-align:center;padding:10px}
+  .pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:20px;background:var(--soft);color:var(--pri2);margin-left:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Z-Skor Balita</h1>
+  <p>Hitung z-score BB/U, PB-TB/U, BB/PB-TB, dan IMT/U per anak (Standar WHO 2006, 0–60 bulan)</p>
+</header>
+<main>
+  <div class="privacy">🔒 <div><b>Data tidak dikirim ke mana pun.</b> Semua perhitungan berjalan di browser perangkat ini. Setelah dibuka sekali, aplikasi bisa dipakai tanpa internet. Data hilang saat halaman ditutup, kecuali Ibu/Bapak mengunduh hasilnya.</div></div>
+
+  <section class="card">
+    <h2><span class="step">1</span>Pilih file data</h2>
+    <p class="sub">Format Excel (.xlsx/.xls) atau CSV. Baris pertama berisi nama kolom.</p>
+    <div id="drop" class="drop">
+      <div style="font-size:28px">📂</div>
+      <div><b>Klik untuk memilih file</b> atau seret file ke sini</div>
+      <div class="info" id="fileinfo">Belum ada file</div>
+    </div>
+    <input id="file" type="file" accept=".xlsx,.xls,.csv,.txt" class="hidden">
+    <div class="row" style="margin-top:10px">
+      <div id="sheetwrap" class="hidden"><label class="f"><span>Sheet</span><select id="sheet"></select></label></div>
+      <button class="ghost" id="tpl" type="button">Unduh contoh format</button>
+    </div>
+  </section>
+
+  <section class="card hidden" id="mapcard">
+    <h2><span class="step">2</span>Cocokkan kolom</h2>
+    <p class="sub">Kolom sudah ditebak otomatis dari namanya. Periksa lagi sebelum diproses.</p>
+    <div class="row" style="margin-bottom:12px">
+      <span style="font-weight:500">Sumber umur:</span>
+      <div class="seg">
+        <label><input type="radio" name="agesrc" value="dates" checked><span>Tgl lahir + tgl ukur</span></label>
+        <label><input type="radio" name="agesrc" value="months"><span>Umur (bulan)</span></label>
+        <label><input type="radio" name="agesrc" value="days"><span>Umur (hari)</span></label>
+      </div>
+    </div>
+    <div class="grid" id="mapgrid"></div>
+    <div class="info" style="margin-top:10px">Kode yang dikenali — JK: 1/L/laki-laki dan 2/P/perempuan. Cara ukur: L/PB/terlentang dan H/TB/berdiri (kalau kosong, dianggap sesuai umur). Oedema: Y/ya/1.</div>
+    <div class="info" style="margin-top:4px">Tanggal: format tanggal Excel, atau teks YYYY-MM-DD / DD/MM/YYYY (hari dulu, baru bulan).</div>
+    <div id="mapwarn"></div>
+    <div class="row" style="margin-top:14px"><button id="run" type="button">Proses z-score</button><span class="info" id="runinfo"></span></div>
+    <div class="bar hidden" id="bar"><div></div></div>
+  </section>
+
+  <section class="card hidden" id="rescard">
+    <h2><span class="step">3</span>Hasil</h2>
+    <p class="sub">Z-score dibulatkan 2 desimal. Flag = nilai di luar batas biologis WHO (perlu cek ulang data).</p>
+    <div class="stats" id="stats"></div>
+    <div class="row" style="margin-bottom:14px">
+      <button id="dlx" type="button">Unduh Excel (.xlsx)</button>
+      <button id="dlc" class="ghost" type="button">Unduh CSV</button>
+      <label class="info" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="withcat" checked> sertakan kategori status gizi (PMK 2/2020)</label>
+    </div>
+    <h3 style="font-size:14.5px;margin:6px 0 8px">Sebaran kategori <span class="pill">tanpa bobot survei, data ber-flag dikeluarkan</span></h3>
+    <div class="cat" id="cats"></div>
+    <h3 style="font-size:14.5px;margin:18px 0 8px">Pratinjau data <span class="info" id="pageinfo"></span></h3>
+    <div class="row" style="margin-bottom:8px">
+      <select id="filter" style="width:auto"><option value="all">Semua baris</option><option value="flag">Hanya yang ber-flag</option><option value="note">Hanya yang ada catatan</option></select>
+      <button class="ghost" id="prev" type="button">‹ Sebelumnya</button><button class="ghost" id="next" type="button">Berikutnya ›</button>
+    </div>
+    <div class="tblwrap"><table id="tbl"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Tentang perhitungan</h2>
+    <p class="sub" style="margin:0">Mengikuti algoritma WHO Anthro (igrowup): tabel LMS harian, umur = bulan × 30,4375; koreksi PB/TB ±0,7 cm; BB/PB untuk &lt;24 bulan (731 hari), BB/TB untuk ≥24 bulan, interpolasi per 0,1 cm; rumus terkoreksi untuk z &gt;+3/&lt;−3 (BB/U, BB/PB-TB, IMT/U). Batas flag: BB/U &lt;−6/&gt;+5, PB-TB/U &lt;−6/&gt;+6, BB/PB-TB dan IMT/U &lt;−5/&gt;+5. Hasil sudah diuji sama dengan output resmi WHO pada 498 data uji (4 indikator, selisih 0,00).</p>
+  </section>
+</main>
+<footer>Z-Skor Balita · bekerja offline · data tetap di perangkat Anda</footer>
+
+<script src="xlsx.full.min.js"></script>
+<script src="who-lms.js"></script>
+<script src="zscore.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  let wb = null, rows = [], headers = [], results = [], page = 0, view = [];
+  const PAGE = 100;
+
+  const FIELDS = [
+    {k:'id', label:'ID / No. responden', req:false, keys:['id','no','nomor','kode','idanak','id_anak','noresp','responden','nik']},
+    {k:'sex', label:'Jenis kelamin', req:true, keys:['jk','sex','gender','jeniskelamin','jenis_kelamin','kelamin','b4k4','jkel']},
+    {k:'dob', label:'Tanggal lahir', req:'dates', keys:['tgllahir','tgl_lahir','tanggallahir','tanggal_lahir','dob','birthdate','lahir']},
+    {k:'dov', label:'Tanggal pengukuran', req:'dates', keys:['tglukur','tgl_ukur','tanggalukur','tanggal_ukur','tglpengukuran','tanggal_pengukuran','dov','tglkunjungan','tanggal_kunjungan','visitdate','tglwawancara']},
+    {k:'ageMonths', label:'Umur (bulan)', req:'months', keys:['umurbulan','umur_bulan','usiabulan','usia_bulan','agemons','agemonths','umur','usia','umur_bln','bulan']},
+    {k:'ageDays', label:'Umur (hari)', req:'days', keys:['umurhari','umur_hari','usiahari','agedays','age_days','hari']},
+    {k:'weight', label:'Berat badan (kg)', req:true, keys:['bb','berat','beratbadan','berat_badan','weight','wt','bb_kg']},
+    {k:'lenhei', label:'Panjang/Tinggi badan (cm)', req:true, keys:['tb','pb','tinggi','tinggibadan','tinggi_badan','panjang','panjangbadan','pbtb','pb_tb','tb_pb','height','length','lenhei','ht']},
+    {k:'measure', label:'Cara ukur (PB/TB)', req:false, keys:['caraukur','cara_ukur','measure','posisi','posisiukur','posisi_ukur','pengukuran']},
+    {k:'oedema', label:'Oedema', req:false, keys:['oedema','edema','udem','odema']},
+  ];
+  const norm = s => String(s).toLowerCase().replace(/[^a-z0-9_]/g,'');
+
+  // ---------- File ----------
+  const drop = $('drop'), file = $('file');
+  drop.onclick = () => file.click();
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); };
+  file.onchange = () => { if (file.files[0]) readFile(file.files[0]); };
+
+  function readFile(f){
+    $('fileinfo').textContent = 'Membaca ' + f.name + ' …';
+    const rd = new FileReader();
+    rd.onload = e => {
+      try {
+        wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true, raw: /\.csv$|\.txt$/i.test(f.name)});
+      } catch(err){ $('fileinfo').textContent = 'Gagal membaca file: ' + err.message; return; }
+      const sel = $('sheet'); sel.innerHTML = '';
+      wb.SheetNames.forEach(n => { const o = document.createElement('option'); o.value = o.textContent = n; sel.appendChild(o); });
+      $('sheetwrap').classList.toggle('hidden', wb.SheetNames.length < 2);
+      loadSheet(wb.SheetNames[0], f.name);
+    };
+    rd.readAsArrayBuffer(f);
+  }
+  $('sheet').onchange = () => loadSheet($('sheet').value);
+
+  function loadSheet(name, fname){
+    const ws = wb.Sheets[name];
+    const aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
+    if (!aoa.length){ $('fileinfo').textContent = 'Sheet kosong'; return; }
+    headers = aoa[0].map((h,i) => String(h).trim() || ('Kolom' + (i+1)));
+    rows = aoa.slice(1).filter(r => r.some(v => v !== '' && v !== null));
+    $('fileinfo').innerHTML = (fname ? '<b>'+esc(fname)+'</b> · ' : '') + 'sheet "' + esc(name) + '" · ' + rows.length.toLocaleString('id-ID') + ' baris · ' + headers.length + ' kolom';
+    buildMap();
+    $('mapcard').classList.remove('hidden');
+    $('rescard').classList.add('hidden');
+  }
+
+  // ---------- Mapping ----------
+  function guess(f){
+    const H = headers.map(norm);
+    for (const k of f.keys){ const i = H.indexOf(k); if (i >= 0) return i; }
+    for (const k of f.keys){ if (k.length < 3) continue; const i = H.findIndex(h => h.includes(k)); if (i >= 0) return i; }
+    return -1;
+  }
+  function buildMap(){
+    const g = $('mapgrid'); g.innerHTML = '';
+    const used = new Set();
+    FIELDS.forEach(f => {
+      let gi = guess(f); if (used.has(gi)) gi = -1; if (gi >= 0) used.add(gi);
+      const wrap = document.createElement('label'); wrap.className = 'f'; wrap.dataset.k = f.k;
+      wrap.innerHTML = '<span>' + f.label + (f.req === true ? ' <em>*</em>' : '') + '</span>';
+      const s = document.createElement('select'); s.id = 'm_' + f.k;
+      s.innerHTML = '<option value="-1">— tidak ada —</option>' + headers.map((h,i) => '<option value="'+i+'">'+esc(h)+'</option>').join('');
+      s.value = gi; s.onchange = checkMap; wrap.appendChild(s); g.appendChild(wrap);
+    });
+    // pilih sumber umur otomatis
+    const has = k => +$('m_'+k).value >= 0;
+    const src = (has('dob') && has('dov')) ? 'dates' : has('ageDays') ? 'days' : has('ageMonths') ? 'months' : 'dates';
+    document.querySelector('input[name=agesrc][value='+src+']').checked = true;
+    showAgeFields(); checkMap();
+  }
+  document.querySelectorAll('input[name=agesrc]').forEach(r => r.onchange = () => { showAgeFields(); checkMap(); });
+  function ageSrc(){ return document.querySelector('input[name=agesrc]:checked').value; }
+  function showAgeFields(){
+    const s = ageSrc();
+    const vis = {dob: s==='dates', dov: s==='dates', ageMonths: s==='months', ageDays: s==='days'};
+    Object.keys(vis).forEach(k => {
+      const el = document.querySelector('label.f[data-k='+k+']');
+      el.classList.toggle('hidden', !vis[k]);
+      el.querySelector('span').innerHTML = FIELDS.find(f=>f.k===k).label + (vis[k] ? ' <em>*</em>' : '');
+    });
+  }
+  function mapping(){ const m = {}; FIELDS.forEach(f => m[f.k] = +$('m_'+f.k).value); return m; }
+  function checkMap(){
+    const m = mapping(), s = ageSrc(), miss = [];
+    FIELDS.forEach(f => { const need = f.req === true || f.req === s; if (need && m[f.k] < 0) miss.push(f.label); });
+    const w = [];
+    if (miss.length) w.push('Kolom wajib belum dipilih: <b>' + miss.join(', ') + '</b>');
+    if (m.measure < 0) w.push('Kolom cara ukur tidak ada: koreksi ±0,7 cm tidak diterapkan (dianggap PB untuk &lt;24 bln dan TB untuk ≥24 bln).');
+    if (m.sex >= 0){
+      const vals = new Set(rows.slice(0,2000).map(r => r[m.sex]).filter(v => v!=='' && v!==null).map(v=>String(v).trim()));
+      const badv = [...vals].filter(v => !ZScore.parseSex(v)).slice(0,5);
+      if (badv.length) w.push('Nilai JK tidak dikenali: <b>' + badv.map(esc).join(', ') + '</b>. Ubah ke 1/2 atau L/P.');
+    }
+    if (m.measure >= 0){
+      const vals = new Set(rows.slice(0,2000).map(r => r[m.measure]).filter(v => v!=='' && v!==null).map(v=>String(v).trim()));
+      const badv = [...vals].filter(v => !ZScore.parseMeasure(v)).slice(0,5);
+      if (badv.length) w.push('Nilai cara ukur tidak dikenali: <b>' + badv.map(esc).join(', ') + '</b> (akan dianggap kosong).');
+    }
+    $('mapwarn').innerHTML = w.map(x => '<div class="warnbox">'+x+'</div>').join('');
+    $('run').disabled = miss.length > 0;
+  }
+
+  // ---------- Proses ----------
+  $('run').onclick = () => {
+    const m = mapping(), s = ageSrc();
+    const get = (r,k) => m[k] >= 0 ? r[m[k]] : undefined;
+    results = new Array(rows.length);
+    $('run').disabled = true; $('bar').classList.remove('hidden');
+    const t0 = performance.now(); let i = 0;
+    (function chunk(){
+      const end = Math.min(i + 2000, rows.length);
+      for (; i < end; i++){
+        const r = rows[i];
+        const inp = { sex:get(r,'sex'), weight:get(r,'weight'), lenhei:get(r,'lenhei'), measure:get(r,'measure'), oedema:get(r,'oedema') };
+        if (s === 'dates'){ inp.dob = get(r,'dob'); inp.dov = get(r,'dov'); }
+        else if (s === 'months') inp.ageMonths = get(r,'ageMonths');
+        else inp.ageDays = get(r,'ageDays');
+        results[i] = ZScore.compute(inp);
+      }
+      $('bar').firstElementChild.style.width = (100 * i / rows.length) + '%';
+      $('runinfo').textContent = i.toLocaleString('id-ID') + ' / ' + rows.length.toLocaleString('id-ID');
+      if (i < rows.length) setTimeout(chunk, 0);
+      else {
+        $('run').disabled = false;
+        $('runinfo').textContent = 'Selesai: ' + rows.length.toLocaleString('id-ID') + ' baris dalam ' + ((performance.now()-t0)/1000).toFixed(1) + ' detik';
+        showResults();
+      }
+    })();
+  };
+
+  const ZCOLS = [['waz','fwaz','BB/U',ZScore.catWAZ],['haz','fhaz','PB-TB/U',ZScore.catHAZ],['whz','fwhz','BB/PB-TB',ZScore.catWHZ],['baz','fbaz','IMT/U',ZScore.catBAZ]];
+
+  function showResults(){
+    $('rescard').classList.remove('hidden');
+    const n = results.length;
+    const st = [['Total baris', n]];
+    ZCOLS.forEach(([z,f,l]) => {
+      const valid = results.filter(r => r[z] !== null).length;
+      const fl = results.filter(r => r[f] === 1).length;
+      st.push(['Z ' + l + ' terhitung', valid, fl ? fl + ' ber-flag' : 'tanpa flag']);
+    });
+    st.push(['Baris dengan catatan', results.filter(r => r.note).length]);
+    $('stats').innerHTML = st.map(s => '<div class="stat"><div class="n">'+(+s[1]).toLocaleString('id-ID')+'</div><div class="l">'+s[0]+(s[2]?' · '+s[2]:'')+'</div></div>').join('');
+    // kategori
+    $('cats').innerHTML = ZCOLS.map(([z,f,l,cat]) => {
+      const cnt = {}; let tot = 0;
+      results.forEach(r => { if (r[z] !== null && r[f] === 0){ const c = cat(r[z]); cnt[c] = (cnt[c]||0)+1; tot++; } });
+      const order = { 'BB/U':['Berat badan sangat kurang','Berat badan kurang','Berat badan normal','Risiko berat badan lebih'],
+        'PB-TB/U':['Sangat pendek','Pendek','Normal','Tinggi'],
+        'BB/PB-TB':['Gizi buruk','Gizi kurang','Gizi baik (normal)','Berisiko gizi lebih','Gizi lebih','Obesitas'] };
+      const o = order[l] || order['BB/PB-TB'];
+      return '<div><table><tr><th>'+l+'</th><th>n</th><th>%</th></tr>' + o.map(c => '<tr><td>'+c+'</td><td>'+(cnt[c]||0).toLocaleString('id-ID')+'</td><td>'+(tot?(100*(cnt[c]||0)/tot).toFixed(1).replace('.',','):'0')+'</td></tr>').join('') + '<tr><td><b>Total</b></td><td><b>'+tot.toLocaleString('id-ID')+'</b></td><td></td></tr></table></div>';
+    }).join('');
+    page = 0; applyFilter();
+  }
+
+  $('filter').onchange = () => { page = 0; applyFilter(); };
+  $('prev').onclick = () => { if (page > 0){ page--; renderTable(); } };
+  $('next').onclick = () => { if ((page+1)*PAGE < view.length){ page++; renderTable(); } };
+  function applyFilter(){
+    const f = $('filter').value; view = [];
+    results.forEach((r,i) => { if (f==='all' || (f==='flag' && (r.fwaz||r.fhaz||r.fwhz||r.fbaz)) || (f==='note' && r.note)) view.push(i); });
+    renderTable();
+  }
+  function renderTable(){
+    const m = mapping(); const idc = m.id;
+    const from = page*PAGE, to = Math.min(view.length, from+PAGE);
+    $('pageinfo').textContent = view.length ? ('baris ' + (from+1).toLocaleString('id-ID') + '–' + to.toLocaleString('id-ID') + ' dari ' + view.length.toLocaleString('id-ID')) : 'tidak ada baris';
+    let h = '<tr><th>#</th>' + (idc>=0?'<th>'+esc(headers[idc])+'</th>':'') + '<th>Umur (hr)</th><th>Umur (bln)</th><th>PB/TB terkoreksi</th><th>IMT</th><th>Z BB/U</th><th>Z PB-TB/U</th><th>Z BB/PB-TB</th><th>Z IMT/U</th><th>Catatan</th></tr>';
+    for (let j = from; j < to; j++){
+      const i = view[j], r = results[i];
+      const zc = (z,f) => '<td class="z'+(r[f]===1?' flag':'')+'">'+(r[z]===null?'':fmt(r[z]))+(r[f]===1?' ⚑':'')+'</td>';
+      h += '<tr><td>'+(i+1)+'</td>' + (idc>=0?'<td>'+esc(rows[i][idc])+'</td>':'') + '<td>'+(r.ageDays??'')+'</td><td>'+(r.ageMonths===null?'':fmt(r.ageMonths))+'</td><td>'+(r.clenhei===null?'':fmt(r.clenhei,1))+'</td><td>'+(r.bmi===null?'':fmt(r.bmi))+'</td>' + zc('waz','fwaz')+zc('haz','fhaz')+zc('whz','fwhz')+zc('baz','fbaz') + '<td>'+esc(r.note)+'</td></tr>';
+    }
+    $('tbl').innerHTML = h;
+  }
+
+  // ---------- Ekspor ----------
+  function buildAoa(){
+    const withCat = $('withcat').checked;
+    const outH = headers.concat(['_umur_hari','_umur_bulan','_pbtb_koreksi','_imt','_zbbu','_ztbu','_zbbtb','_zimtu','_flag_bbu','_flag_tbu','_flag_bbtb','_flag_imtu']);
+    if (withCat) outH.push('_kat_bbu','_kat_tbu','_kat_bbtb','_kat_imtu');
+    outH.push('_catatan');
+    const aoa = [outH];
+    rows.forEach((r,i) => {
+      const x = results[i];
+      const base = headers.map((_,c) => r[c] instanceof Date ? isoDate(r[c]) : r[c]);
+      const add = [x.ageDays, x.ageMonths, x.clenhei, x.bmi, x.waz, x.haz, x.whz, x.baz, x.fwaz, x.fhaz, x.fwhz, x.fbaz];
+      if (withCat) add.push(x.fwaz===0?ZScore.catWAZ(x.waz):'', x.fhaz===0?ZScore.catHAZ(x.haz):'', x.fwhz===0?ZScore.catWHZ(x.whz):'', x.fbaz===0?ZScore.catBAZ(x.baz):'');
+      add.push(x.note);
+      aoa.push(base.concat(add.map(v => v === null ? '' : v)));
+    });
+    return aoa;
+  }
+  function stamp(){ const d = new Date(); return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0'); }
+  $('dlx').onclick = () => {
+    const ws = XLSX.utils.aoa_to_sheet(buildAoa());
+    const nb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(nb, ws, 'zscore');
+    const info = XLSX.utils.aoa_to_sheet([
+      ['Keterangan kolom'],['_zbbu','Z-score berat badan menurut umur'],['_ztbu','Z-score panjang/tinggi badan menurut umur'],
+      ['_zbbtb','Z-score berat badan menurut panjang/tinggi badan'],['_zimtu','Z-score IMT menurut umur'],
+      ['_flag_*','1 = di luar batas biologis WHO (cek ulang data); 0 = wajar'],['_pbtb_koreksi','PB/TB setelah koreksi ±0,7 cm'],
+      ['Standar','WHO Child Growth Standards 2006; kategori PMK No. 2 Tahun 2020'],['Dibuat', new Date().toLocaleString('id-ID')]]);
+    XLSX.utils.book_append_sheet(nb, info, 'keterangan');
+    XLSX.writeFile(nb, 'hasil-zscore-' + stamp() + '.xlsx', {compression:true});
+  };
+  $('dlc').onclick = () => {
+    const csv = XLSX.utils.sheet_to_csv(XLSX.utils.aoa_to_sheet(buildAoa()));
+    const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'hasil-zscore-' + stamp() + '.csv'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+  $('tpl').onclick = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['id','jk','tgl_lahir','tgl_ukur','umur_bulan','bb','tb','cara_ukur','oedema'],
+      ['A001',1,'2023-03-15','2026-08-10','',12.4,92.1,'TB','T'],
+      ['A002',2,'2025-01-02','2026-08-10','',8.1,72.5,'PB','T'],
+      ['A003','L','','','14',9.0,76.0,'PB','T']]);
+    const nb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(nb, ws, 'data');
+    XLSX.writeFile(nb, 'contoh-format-zskor.xlsx');
+  };
+
+  // ---------- util ----------
+  function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function fmt(v, d=2){ return Number(v).toFixed(d).replace('.', ','); }
+  function isoDate(d0){ const d = new Date(ZScore.parseDate(d0)); return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0'); }
+
+  if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('sw.js').catch(()=>{}); } catch(e){} }
+})();
+</script>
+</body>
+</html>

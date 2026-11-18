@@ -1,0 +1,15 @@
+{
+  "name": "Z-Skor Balita",
+  "short_name": "Z-Skor",
+  "description": "Pengolah z-score WHO 2006 untuk balita, berjalan offline di perangkat",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f7f5",
+  "theme_color": "#0f766e",
+  "lang": "id",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
