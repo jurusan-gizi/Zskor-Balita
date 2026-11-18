@@ -12,6 +12,8 @@ Kalau perlu lokal di laptop: buka folder ini di terminal, jalankan  python -m ht
 lalu buka http://localhost:8000
 
 Catatan:
+- File hasil: format WHO Anthro (id, sex, age_days, age_months, weight, lenhei, measure, oedema, clenhei,
+  cbmi, zlen/flen, zwei/fwei, zwfl/fwfl, zbmi/fbmi). Variabel lain dan kategori PMK 2/2020 opsional (centang).
 - Simpan di browser: pilih masa simpan (1–30 hari) sebelum klik Proses. Data disimpan di browser
   perangkat itu saja dan terhapus otomatis setelah masa simpan habis. Jangan aktifkan di komputer bersama.
 - Unduh: bila unduhan tidak muncul, pakai tautan 'klik di sini' atau tombol 'Bagikan / Simpan ke…' (HP).

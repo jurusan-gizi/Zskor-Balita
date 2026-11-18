@@ -64,6 +64,11 @@
   .cat{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
   .cat table td:last-child,.cat table th:last-child,.cat table td:nth-child(2),.cat table th:nth-child(2){text-align:right}
   .hidden{display:none}
+  .outset{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:14px}
+  .outset summary{cursor:pointer}
+  .extralist{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 14px;max-height:240px;overflow:auto;border-top:1px solid var(--line);padding-top:6px}
+  .extralist label{display:flex;gap:6px;align-items:baseline;font-size:13px;padding:2px 0;cursor:pointer}
+  .extralist label small{color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .keep{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fbfde8;border:1px solid #e6ecb0;border-radius:10px;padding:10px 12px;margin-top:14px;font-size:14px}
   #dlnote a{color:var(--pri);font-weight:600}
   .fmt{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
@@ -155,7 +160,19 @@
       <button id="dlx" type="button">Unduh Excel (.xlsx)</button>
       <button id="dlc" class="ghost" type="button">Unduh CSV</button>
       <button id="dlshare" class="ghost hidden" type="button">Bagikan / Simpan ke…</button>
-      <label class="info" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="withcat" checked> sertakan kategori status gizi (PMK 2/2020)</label>
+    </div>
+    <div class="outset">
+      <div><b>Isi file hasil:</b> format WHO Anthro — <span class="info" id="outcols"></span></div>
+      <label class="info" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="withcat"> tambahkan kategori status gizi (PMK 2/2020)</label>
+      <details id="extrabox" style="margin-top:8px">
+        <summary><b>Tambah variabel lain (opsional)</b> <span class="info" id="extracount">— belum ada yang dipilih</span></summary>
+        <div class="row" style="margin:8px 0">
+          <input type="text" id="extrasearch" placeholder="Cari nama/label variabel…" style="max-width:260px">
+          <button class="ghost" type="button" id="extraall" style="padding:4px 12px">Pilih semua</button>
+          <button class="ghost" type="button" id="extranone" style="padding:4px 12px">Kosongkan</button>
+        </div>
+        <div id="extralist" class="extralist"></div>
+      </details>
     </div>
     <div id="dlnote" class="info" style="margin:-6px 0 12px"></div>
     <h3 style="font-size:14.5px;margin:6px 0 8px">Sebaran kategori <span class="pill">tanpa bobot survei, data ber-flag dikeluarkan</span></h3>
@@ -263,6 +280,7 @@
     afterLoad();
   }
   function afterLoad(){
+    extraSel = new Set();
     buildMap();
     $('mapcard').classList.remove('hidden');
     $('rescard').classList.add('hidden');
@@ -402,6 +420,7 @@
       return '<div><table><tr><th>'+l+'</th><th>n</th><th>%</th></tr>' + o.map(c => '<tr><td>'+c+'</td><td>'+(cnt[c]||0).toLocaleString('id-ID')+'</td><td>'+(tot?(100*(cnt[c]||0)/tot).toFixed(1).replace('.',','):'0')+'</td></tr>').join('') + '<tr><td><b>Total</b></td><td><b>'+tot.toLocaleString('id-ID')+'</b></td><td></td></tr></table></div>';
     }).join('');
     page = 0; applyFilter();
+    buildExtraList();
   }
 
   $('filter').onchange = () => { page = 0; applyFilter(); };
@@ -426,21 +445,63 @@
   }
 
   // ---------- Ekspor ----------
+  // ---------- Kolom keluaran: format WHO Anthro + variabel tambahan opsional ----------
+  let extraSel = new Set();
+  const WHO_COLS = ['sex','age_days','age_months','weight','lenhei','measure','oedema','clenhei','cbmi','zlen','flen','zwei','fwei','zwfl','fwfl','zbmi','fbmi'];
+  function buildExtraList(){
+    const m = mapping(), used = new Set(Object.values(m).filter(v => v >= 0));
+    const q = ($('extrasearch').value || '').toLowerCase();
+    $('extralist').innerHTML = headers.map((h, i) => {
+      if (used.has(i)) return '';
+      const lab = varLabels[i] || '';
+      if (q && !(h.toLowerCase().includes(q) || lab.toLowerCase().includes(q))) return '';
+      return '<label><input type="checkbox" data-c="' + i + '"' + (extraSel.has(i) ? ' checked' : '') + '><span>' + esc(h) + (lab ? ' <small>— ' + esc(lab) + '</small>' : '') + '</span></label>';
+    }).join('') || '<span class="info">Tidak ada variabel lain.</span>';
+    $('extralist').querySelectorAll('input').forEach(cb => cb.onchange = () => { cb.checked ? extraSel.add(+cb.dataset.c) : extraSel.delete(+cb.dataset.c); updOut(); });
+    updOut();
+  }
+  function updOut(){
+    const n = extraSel.size;
+    $('extracount').textContent = n ? '— ' + n + ' variabel dipilih' : '— belum ada yang dipilih';
+    const tot = 1 + n + WHO_COLS.length + ($('withcat').checked ? 4 : 0) + 1;
+    $('outcols').textContent = tot + ' kolom (id' + (n ? ', ' + n + ' variabel tambahan' : '') + ', input, z-score, flag' + ($('withcat').checked ? ', kategori' : '') + ', catatan)';
+  }
+  $('extrasearch').oninput = buildExtraList;
+  $('extraall').onclick = () => { $('extralist').querySelectorAll('input').forEach(cb => extraSel.add(+cb.dataset.c)); buildExtraList(); };
+  $('extranone').onclick = () => { extraSel.clear(); buildExtraList(); };
+  $('withcat').onchange = updOut;
+
+  let OUT = null; // pengaturan dibekukan saat ekspor dimulai
+  function prepOut(){
+    const m = mapping();
+    OUT = { m, extras: [...extraSel].sort((a, b) => a - b), withCat: $('withcat').checked };
+    return OUT;
+  }
   function outHeader(){
-    const withCat = $('withcat').checked;
-    const h = headers.concat(['_umur_hari','_umur_bulan','_pbtb_koreksi','_imt','_zbbu','_ztbu','_zbbtb','_zimtu','_flag_bbu','_flag_tbu','_flag_bbtb','_flag_imtu']);
-    if (withCat) h.push('_kat_bbu','_kat_tbu','_kat_bbtb','_kat_imtu');
-    h.push('_catatan');
+    const o = OUT || prepOut();
+    const h = [o.m.id >= 0 ? headers[o.m.id] : 'no'];
+    o.extras.forEach(c => h.push(headers[c]));
+    h.push(...WHO_COLS);
+    if (o.withCat) h.push('kat_bbu','kat_tbu','kat_bbtb','kat_imtu');
+    h.push('catatan');
     return h;
   }
+  const numOrBlank = v => { if (v === '' || v === null || v === undefined) return ''; const n = Number(String(v).trim().replace(',', '.')); return isFinite(n) ? n : v; };
   function outRow(i){
-    const withCat = $('withcat').checked;
+    const o = OUT || prepOut(), m = o.m;
     const r = rows[i], x = results[i];
-    const base = headers.map((_,c) => r[c] instanceof Date ? isoDate(r[c]) : r[c]);
-    const add = [x.ageDays, x.ageMonths, x.clenhei, x.bmi, x.waz, x.haz, x.whz, x.baz, x.fwaz, x.fhaz, x.fwhz, x.fbaz];
-    if (withCat) add.push(x.fwaz===0?ZScore.catWAZ(x.waz):'', x.fhaz===0?ZScore.catHAZ(x.haz):'', x.fwhz===0?ZScore.catWHZ(x.whz):'', x.fbaz===0?ZScore.catBAZ(x.baz):'');
-    add.push(x.note);
-    return base.concat(add.map(v => v === null ? '' : v));
+    const cv = c => { const v = r[c]; return v instanceof Date ? isoDate(v) : v; };
+    const row = [m.id >= 0 ? cv(m.id) : i + 1];
+    o.extras.forEach(c => row.push(cv(c)));
+    const sx = m.sex >= 0 ? ZScore.parseSex(cellVal(r, m.sex, ZScore.parseSex)) : null;
+    const ms = m.measure >= 0 ? ZScore.parseMeasure(cellVal(r, m.measure, ZScore.parseMeasure)) : null;
+    let oe = '';
+    if (m.oedema >= 0){ const ov = cellVal(r, m.oedema, oedParse); oe = (ov === '' || ov === null || ov === undefined) ? 'n' : (oedParse(ov) === true ? 'y' : 'n'); }
+    row.push(sx ? +sx : '', x.ageDays, x.ageMonths, numOrBlank(r[m.weight]), numOrBlank(r[m.lenhei]), ms || '', oe,
+      x.clenhei, x.bmi, x.haz, x.fhaz, x.waz, x.fwaz, x.whz, x.fwhz, x.baz, x.fbaz);
+    if (o.withCat) row.push(x.fwaz===0?ZScore.catWAZ(x.waz):'', x.fhaz===0?ZScore.catHAZ(x.haz):'', x.fwhz===0?ZScore.catWHZ(x.whz):'', x.fbaz===0?ZScore.catBAZ(x.baz):'');
+    row.push(x.note);
+    return row.map(v => v === null || v === undefined ? '' : v);
   }
   function stamp(){ const d = new Date(); return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0'); }
   // Simpan file: (1) dialog "Simpan sebagai" bila didukung, (2) unduhan biasa, (3) tautan cadangan, (4) Bagikan (HP)
@@ -478,10 +539,14 @@
     setTimeout(async () => {
       try {
         if (rows.length > 1048575) throw new Error('Data lebih dari 1.048.575 baris (batas Excel). Gunakan Unduh CSV.');
-        const info = [['_zbbu','Z-score berat badan menurut umur'],['_ztbu','Z-score panjang/tinggi badan menurut umur'],
-          ['_zbbtb','Z-score berat badan menurut panjang/tinggi badan'],['_zimtu','Z-score IMT menurut umur'],
-          ['_flag_*','1 = di luar batas biologis WHO (cek ulang data); 0 = wajar'],['_pbtb_koreksi','PB/TB setelah koreksi ±0,7 cm'],
+        const info = [['sex','Jenis kelamin: 1 = laki-laki, 2 = perempuan'],['age_days / age_months','Umur dalam hari / bulan (hari = bulan × 30,4375)'],
+          ['weight / lenhei','Berat badan (kg) / panjang atau tinggi badan (cm) sesuai data asli'],['measure','Cara ukur: l = terlentang (PB), h = berdiri (TB); kosong = tidak diisi'],
+          ['oedema','y = ada, n = tidak'],['clenhei','PB/TB setelah koreksi ±0,7 cm'],['cbmi','IMT dari BB dan PB/TB terkoreksi'],
+          ['zlen / flen','Z-score PB/U atau TB/U / flag (1 bila < −6 atau > +6)'],['zwei / fwei','Z-score BB/U / flag (1 bila < −6 atau > +5)'],
+          ['zwfl / fwfl','Z-score BB/PB atau BB/TB / flag (1 bila < −5 atau > +5)'],['zbmi / fbmi','Z-score IMT/U / flag (1 bila < −5 atau > +5)'],
+          ['kat_*','Kategori status gizi PMK No. 2 Tahun 2020 (hanya bila dipilih; kosong bila ber-flag)'],
           ['Standar','WHO Child Growth Standards 2006; kategori PMK No. 2 Tahun 2020'],['Jumlah baris', rows.length],['Dibuat', new Date().toLocaleString('id-ID')]];
+        prepOut();
         const blob = await XlsxW.writeXlsx([
           { name: 'zscore', header: outHeader(), rowCount: rows.length, getRow: outRow },
           { name: 'keterangan', header: ['Kolom', 'Keterangan'], rowCount: info.length, getRow: i => info[i] }
@@ -489,17 +554,18 @@
         btn.textContent = 'Menyimpan…';
         await saveBlob(blob, 'hasil-zscore-' + stamp() + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx');
       } catch (e) { showErr(e); }
-      busy(btn, false);
+      OUT = null; busy(btn, false);
     }, 30);
   };
   $('dlc').onclick = () => {
     const btn = $('dlc'); busy(btn, true);
     setTimeout(async () => {
       try {
+        prepOut();
         const blob = await XlsxW.writeCsv(outHeader(), rows.length, outRow, f => prog(btn, f));
         await saveBlob(blob, 'hasil-zscore-' + stamp() + '.csv', 'text/csv', 'csv');
       } catch (e) { showErr(e); }
-      busy(btn, false);
+      OUT = null; busy(btn, false);
     }, 30);
   };
   $('tpl').onclick = async () => {
